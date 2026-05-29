@@ -18,3 +18,6 @@ Modern inventeringsapp för flera lagerplatser (Malmö, Helsingborg, etc.).
 3. Kör appen med:
    ```bash
    flutter run
+
+
+   
