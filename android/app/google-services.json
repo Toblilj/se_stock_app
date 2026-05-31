@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "550563013269",
+    "firebase_url": "https://se-stock-app-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "se-stock-app",
+    "storage_bucket": "se-stock-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:550563013269:android:e7652a47f8738c0c0a719c",
+        "android_client_info": {
+          "package_name": "com.example.se_stock_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAwVlenSkyY3b4rL8-Nyt94TVLujNGj7rw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

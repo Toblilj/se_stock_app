@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:csv/csv.dart';
-import 'dart:io';
+import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'dart:convert'; // för web
+import 'dart:html' as html; // endast för web-export
 import '../services/firestore_service.dart';
 import '../models/inventory_item.dart';
 
@@ -26,6 +28,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
   String searchQuery = '';
 
   @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -33,7 +41,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.download),
+            icon: const Icon(Icons.download_rounded),
             onPressed: _exportToCsv,
             tooltip: 'Exportera som CSV',
           ),
@@ -42,17 +50,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(16),
             child: TextField(
               controller: _searchCtrl,
               decoration: InputDecoration(
                 labelText: 'Sök produkt...',
                 prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                filled: true,
-                fillColor: Colors.white,
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              onChanged: (value) => setState(() => searchQuery = value.toLowerCase()),
+              onChanged: (value) =>
+                  setState(() => searchQuery = value.toLowerCase()),
             ),
           ),
           Expanded(
@@ -65,31 +73,29 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
                 final items = snapshot.data ?? [];
 
-                final filteredItems = items
-                    .where((item) => item.name.toLowerCase().contains(searchQuery))
+                final filtered = items
+                    .where(
+                        (item) => item.name.toLowerCase().contains(searchQuery))
                     .toList();
 
-                if (filteredItems.isEmpty) {
+                if (filtered.isEmpty) {
                   return const Center(
-                    child: Text(
-                      'Inga produkter hittades\nTryck + för att lägga till',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 18),
-                    ),
+                    child:
+                        Text('Inga produkter än.\nTryck + för att lägga till'),
                   );
                 }
 
                 return ListView.builder(
                   padding: const EdgeInsets.all(12),
-                  itemCount: filteredItems.length,
+                  itemCount: filtered.length,
                   itemBuilder: (context, index) {
-                    final item = filteredItems[index];
+                    final item = filtered[index];
                     return Card(
-                      elevation: 2,
-                      margin: const EdgeInsets.only(bottom: 10),
+                      margin: const EdgeInsets.only(bottom: 12),
                       child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        title: Text(item.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
+                        title: Text(item.name,
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.w500)),
                         subtitle: Text(
                           'Senast: ${item.lastUpdated != null ? item.lastUpdated!.toString().substring(0, 16) : "Ny"}',
                         ),
@@ -97,13 +103,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                              onPressed: () => _updateQuantity(item, item.quantity - 1),
+                              icon: const Icon(Icons.remove, color: Colors.red),
+                              onPressed: () =>
+                                  _updateQuantity(item, item.quantity - 1),
                             ),
-                            Text('${item.quantity}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                            Text('${item.quantity}',
+                                style: const TextStyle(
+                                    fontSize: 24, fontWeight: FontWeight.bold)),
                             IconButton(
-                              icon: const Icon(Icons.add_circle_outline, color: Colors.green),
-                              onPressed: () => _updateQuantity(item, item.quantity + 1),
+                              icon: const Icon(Icons.add, color: Colors.green),
+                              onPressed: () =>
+                                  _updateQuantity(item, item.quantity + 1),
                             ),
                           ],
                         ),
@@ -136,11 +146,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Lägg till ny produkt'),
+        title: const Text('Lägg till produkt'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Produktnamn')),
+            TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: 'Produktnamn')),
             TextField(
               controller: qtyCtrl,
               decoration: const InputDecoration(labelText: 'Antal'),
@@ -149,7 +161,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Avbryt')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Avbryt')),
           TextButton(
             onPressed: () {
               final name = nameCtrl.text.trim();
@@ -167,9 +180,41 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Future<void> _exportToCsv() async {
-    // Enkel export-funktion (kan förbättras senare)
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Export-funktion kommer snart...')),
-    );
+    try {
+      final items = await _service.getInventory(widget.locationId).first;
+
+      final csvData = [
+        ['Produkt', 'Antal', 'Senast uppdaterad'],
+        ...items.map((item) => [
+              item.name,
+              item.quantity.toString(),
+              item.lastUpdated?.toString().substring(0, 16) ?? '',
+            ]),
+      ];
+
+      final csvString = const ListToCsvConverter().convert(csvData);
+
+      // Web-vänlig nedladdning
+      final bytes = utf8.encode(csvString);
+      final blob = html.Blob([bytes]);
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute("download",
+            "${widget.locationName.replaceAll(" ", "_")}_inventering.csv")
+        ..style.display = "none";
+
+      html.document.body!.append(anchor);
+      anchor.click();
+      anchor.remove();
+      html.Url.revokeObjectUrl(url);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('CSV-fil laddades ner!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kunde inte exportera: $e')),
+      );
+    }
   }
 }

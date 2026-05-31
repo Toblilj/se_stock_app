@@ -1,54 +1,42 @@
 import 'package:flutter/material.dart';
-import '../models/location.dart';           // ← Detta saknades
-import '../services/firestore_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers.dart';
 import 'inventory_screen.dart';
 
-class LocationSelectScreen extends StatefulWidget {
+class LocationSelectScreen extends ConsumerWidget {
   const LocationSelectScreen({super.key});
 
   @override
-  State<LocationSelectScreen> createState() => _LocationSelectScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final locationsAsync = ref.watch(locationsProvider);
 
-class _LocationSelectScreenState extends State<LocationSelectScreen> {
-  final FirestoreService _service = FirestoreService();
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Välj Lager'),
         centerTitle: true,
       ),
-      body: StreamBuilder<List<Location>>(
-        stream: _service.getLocations(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final locations = snapshot.data ?? [];
-
+      body: locationsAsync.when(
+        data: (locations) {
           if (locations.isEmpty) {
             return const Center(
-              child: Text('Inga lagerplatser än.\nTryck + för att lägga till ett', 
-                textAlign: TextAlign.center, style: TextStyle(fontSize: 18)),
+              child:
+                  Text('Inga lagerplatser än.\nTryck + för att lägga till ett'),
             );
           }
-
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: locations.length,
             itemBuilder: (context, index) {
               final loc = locations[index];
               return Card(
-                elevation: 4,
                 margin: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
                   contentPadding: const EdgeInsets.all(20),
-                  title: Text(loc.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  title: Text(loc.name,
+                      style: const TextStyle(
+                          fontSize: 22, fontWeight: FontWeight.bold)),
                   subtitle: loc.address != null ? Text(loc.address!) : null,
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 28),
+                  trailing: const Icon(Icons.arrow_forward_ios),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -65,35 +53,50 @@ class _LocationSelectScreenState extends State<LocationSelectScreen> {
             },
           );
         },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Fel: $err')),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddLocationDialog(context),
+        onPressed: () => _showAddLocationDialog(context, ref),
         child: const Icon(Icons.add),
       ),
     );
   }
 
-  void _showAddLocationDialog(BuildContext context) {
+  void _showAddLocationDialog(BuildContext context, WidgetRef ref) {
     final nameCtrl = TextEditingController();
     final addrCtrl = TextEditingController();
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Lägg till nytt lager'),
+        title: const Text('Nytt Lager'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Namn (t.ex. Malmö Lager)')),
-            TextField(controller: addrCtrl, decoration: const InputDecoration(labelText: 'Adress (valfritt)')),
+            TextField(
+              controller: nameCtrl,
+              decoration:
+                  const InputDecoration(labelText: 'Namn (t.ex. Malmö Lager)'),
+            ),
+            TextField(
+              controller: addrCtrl,
+              decoration: const InputDecoration(labelText: 'Adress (valfritt)'),
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Avbryt')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Avbryt'),
+          ),
           TextButton(
             onPressed: () {
-              if (nameCtrl.text.trim().isNotEmpty) {
-                _service.createLocation(nameCtrl.text.trim(), addrCtrl.text.trim());
+              final name = nameCtrl.text.trim();
+              if (name.isNotEmpty) {
+                ref
+                    .read(firestoreServiceProvider)
+                    .createLocation(name, addrCtrl.text.trim());
                 Navigator.pop(ctx);
               }
             },
