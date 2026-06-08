@@ -4,7 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'dart:convert'; // för web
-import 'dart:html' as html; // endast för web-export
+
 import '../services/firestore_service.dart';
 import '../models/inventory_item.dart';
 
@@ -194,27 +194,31 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
       final csvString = const ListToCsvConverter().convert(csvData);
 
-      // Web-vänlig nedladdning
-      final bytes = utf8.encode(csvString);
-      final blob = html.Blob([bytes]);
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute("download",
-            "${widget.locationName.replaceAll(" ", "_")}_inventering.csv")
-        ..style.display = "none";
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName =
+          "${widget.locationName.replaceAll(" ", "_")}_inventering_${DateTime.now().toString().substring(0, 10)}.csv";
+      final file = File('${directory.path}/$fileName');
 
-      html.document.body!.append(anchor);
-      anchor.click();
-      anchor.remove();
-      html.Url.revokeObjectUrl(url);
+      await file.writeAsString(csvString);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('CSV-fil laddades ner!')),
+      // Dela filen så man kan öppna den i Excel eller Gmail etc.
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text:
+            'Inventering ${widget.locationName} - ${DateTime.now().toString().substring(0, 16)}',
       );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('CSV-fil sparad och redo att delas!')),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Kunde inte exportera: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Kunde inte exportera: $e')),
+        );
+      }
     }
   }
 }
